@@ -23,6 +23,8 @@ class APF(object):
     def set_state(self, robot_pos, obs_pos): # env dynamic info
         self.robot_pos = robot_pos
         self.obs_pos = obs_pos
+        print("robot_pos {}, obs_pos {}".format(robot_pos, obs_pos))
+        print("goal_pos {}, obs_r {}, robot_r {}".format(self.goal_pos, self.obs_r, self.robot_r))
         
         
     def calculate_potential_field(self):
@@ -34,10 +36,12 @@ class APF(object):
             weight_obs = 1.1
             for i in range(self.obs_pos.shape[0]):
                 v_magnitude_obs_i, v_direction_obs_i = potential.avoid_static_obstacles(self.robot_pos[robot_idx], self.obs_pos[i], self.obs_r[i])
-                # print("robot_pos[idx] {} v_direction_obs_i {}".format(self.robot_pos[robot_idx], v_direction_obs_i))
-                v_direction_obs += v_direction_obs_i
-                v_magnitude_obs += v_magnitude_obs_i
-            weight_v_direction_obs = v_direction_obs/np.linalg.norm(v_direction_obs) * weight_obs # normalized and weighted
+                # print("robot_pos[idx] {} v_direction_obs_i {}".format(self.robot_pos[robot_idx], v_direction_obs_i))               
+                # v_direction_obs += v_direction_obs_i # ---------|
+                # v_magnitude_obs += v_magnitude_obs_i # --wrong--|
+                v_direction_obs += v_direction_obs_i/np.linalg.norm(v_direction_obs_i) * v_magnitude_obs_i
+            # weight_v_direction_obs = v_direction_obs/np.linalg.norm(v_direction_obs) * weight_obs # normalized and weighted
+            weight_v_direction_obs = v_direction_obs * weight_obs # directly weighted
             
             ### partner potential
             v_direction_partner = np.zeros(self.robot_pos[0].shape[0])
@@ -48,14 +52,19 @@ class APF(object):
                     continue
                 else:
                     v_magnitude_partner_i, v_direction_partner_i = potential.avoid_robots(self.robot_pos[robot_idx], partner_pos, self.robot_r)
-                v_direction_partner += v_direction_partner_i
-                v_magnitude_partner += v_magnitude_partner_i
-            weight_v_direction_partner = v_direction_partner/np.linalg.norm(v_direction_partner) * weight_partner # normalized and weighted
+                # v_direction_partner += v_direction_partner_i # ---------|
+                # v_magnitude_partner += v_magnitude_partner_i # --wrong--|
+                v_direction_partner += v_direction_partner_i/np.linalg.norm(v_direction_partner_i) * v_magnitude_partner_i
+                
+            # weight_v_direction_partner = v_direction_partner/np.linalg.norm(v_direction_partner) * weight_partner # normalized and weighted
+            weight_v_direction_partner = v_direction_partner * weight_partner # directly weighted
             
             ### goal potential
             v_magnitude_goal, v_direction_goal = potential.move_to_goal(self.robot_pos[robot_idx], self.goal_pos)
             weight_goal = 0.7
-            weight_v_direction_goal = v_direction_goal/np.linalg.norm(v_direction_goal) * weight_goal # normalized and weighted
+            # weight_v_direction_goal = v_direction_goal/np.linalg.norm(v_direction_goal) * weight_goal # normalized and weighted
+            v_direction_goal = v_direction_goal/np.linalg.norm(v_direction_goal) * v_magnitude_goal
+            weight_v_direction_goal = v_direction_goal * weight_goal # directly weighted
             
             ### formation potential
             v_direction_formation = np.zeros(self.robot_pos[0].shape[0])
@@ -72,23 +81,40 @@ class APF(object):
                         chosen_site_pos = partner_site_pos[np.argmin(site_dist)] # choose the nearest site as the center of attractive potential field
                         v_magnitude_site, v_direction_site = potential.maintain_formation(self.robot_pos[robot_idx], chosen_site_pos)
                         
-                        v_direction_formation += v_direction_site
-                        v_magnitude_formation += v_magnitude_site
-            weight_v_direction_formation = v_direction_formation/np.linalg.norm(v_direction_formation) * weight_formation # normalized and weighted
+                        # v_direction_formation += v_direction_site # ---------|
+                        # v_magnitude_formation += v_magnitude_site # --wrong--|
+                        v_direction_formation += v_direction_site/np.linalg.norm(v_direction_site) * v_magnitude_site
+            # weight_v_direction_formation = v_direction_formation/np.linalg.norm(v_direction_formation) * weight_formation # normalized and weighted
+            weight_v_direction_formation = v_direction_formation * weight_formation # directly weighted
                             
             
             ### unit center potential
             unit_center = np.average(self.robot_pos)
             v_magnitude_unitcenter, v_direction_unitcenter = potential.move_to_uint_center(self.robot_pos[robot_idx], unit_center)
             weight_unitcenter = 0.6
-            weight_v_direction_unitcenter = v_direction_unitcenter/np.linalg.norm(v_direction_unitcenter) * weight_unitcenter # normalized and weighted
+            # weight_v_direction_unitcenter = v_direction_unitcenter/np.linalg.norm(v_direction_unitcenter) * weight_unitcenter # normalized and weighted
+            v_direction_unitcenter = v_direction_unitcenter/np.linalg.norm(v_direction_unitcenter) * v_magnitude_unitcenter
+            weight_v_direction_unitcenter = v_direction_unitcenter * weight_unitcenter # directly weighted
             
             # action of one robot
             # v_direction = v_direction_obs + v_direction_partner + v_direction_goal + v_direction_formation + v_direction_unitcenter # [dx, dy] before normalized
+            
+            # print("v_obs {}, v_partner {}, v_goal {}, v_formation {}, v_unitcenter {}".format(v_direction_obs, v_direction_partner, v_direction_goal, v_direction_formation, v_direction_unitcenter))
+            
+            ### robot team
             v_direction = weight_v_direction_obs + weight_v_direction_partner + weight_v_direction_goal + weight_v_direction_formation + weight_v_direction_unitcenter # use weighted direction
-            normalized_v_direction = v_direction / np.linalg.norm(v_direction)
-            v_magnitude = v_magnitude_obs + v_magnitude_partner + v_magnitude_goal + v_magnitude_formation + v_magnitude_unitcenter
-            robots_action.append([v_magnitude*normalized_v_direction[0], v_magnitude*normalized_v_direction[1]])
+            # normalized_v_direction = v_direction / np.linalg.norm(v_direction)                              
+            # v_magnitude = v_magnitude_obs + v_magnitude_partner + v_magnitude_goal + v_magnitude_formation + v_magnitude_unitcenter # dummy and wrong
+            
+            # ----debug with one robot----
+            print("v_obs {}, v_goal {}".format(v_direction_obs, v_direction_goal))
+            v_direction = weight_v_direction_obs + weight_v_direction_goal
+            # normalized_v_direction = v_direction / np.linalg.norm(v_direction) # -----|
+            # v_magnitude = v_magnitude_obs + v_magnitude_goal # ----dummy and wrong----|
+            # ----------------------------
+            
+            # robots_action.append([v_magnitude*normalized_v_direction[0], v_magnitude*normalized_v_direction[1]]) # wrong!
+            robots_action.append(v_direction)
 
         
         return np.array(robots_action) # shape of robots_action: [[vx1,vy1],[vx2,vy2],[vx3,vy3]]
