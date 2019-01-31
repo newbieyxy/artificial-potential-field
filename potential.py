@@ -48,14 +48,14 @@ def attractive(r, schema):
         v_magnitude = 0
     return v_magnitude
 
-def avoid_static_obstacles(robot_pos, obs_pos):
-    r = np.linalg.norm(robot_pos - obs_pos)
+def avoid_static_obstacles(robot_pos, obs_pos, obs_pos_r): 
+    r = np.linalg.norm(robot_pos - obs_pos) - obs_pos_r # should consider the radius of obstacles
     v_magnitude = repulsive(r, schema="avoid_static_obstacles")
     v_direction = robot_pos - obs_pos
     return v_magnitude, v_direction
 
-def avoid_robots(robot_pos, partner_pos):
-    r = np.linalg.norm(robot_pos - partner_pos)
+def avoid_robots(robot_pos, partner_pos, partner_r):
+    r = np.linalg.norm(robot_pos - partner_pos) - partner_r # should consider the radius of partner
     v_magnitude = repulsive(r, schema="avoid_robots")
     v_direction = robot_pos - partner_pos
     return v_magnitude, v_direction

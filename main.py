@@ -19,7 +19,7 @@ parser.add_argument('--site-mode', type=str, help="Choose the mode of attachment
 parser.add_argument('--save-dir', type=str, help="Set the save path of record, suggesting date.")
 args = parser.parse_args()
 
-env = gym.make("rvo_pos_v-v0")
+env = gym.make("apf_single_pos_v-v0") # env is set based on global coordinate
 env.seed(1)
 save_dir = "./logs/"+args.save_dir
 os.makedirs(save_dir) # avoid covering existing files
@@ -35,15 +35,19 @@ agent = APF(robot_num, sensor_range, site_mode)
 test_num = 10
 for it in range(test_num):
     env.reset()
+    goal_pos = env.unwrapped.s_goal
+    obs_r = env.unwrapped.s_obs_r # vector like [r1,r2,...]
+    robot_r = env.unwrapped.hp_uav_r # scalar
+    agent.reset_state(goal_pos, obs_r, robot_r)
     steps = 0
     while True:
         steps += 1
         # env state information (which is dynamic)
         obs_pos = env.unwrapped.s_obs_pos
         robot_pos = env.unwrapped.s_uav_pos
-        goal_pos = env.unwrapped.s_goal
-        agent.set_state(robot_pos, obs_pos, goal_pos)
-        action = agent.calculate_potential_field()
+        # feed the agent with current state
+        agent.set_state(robot_pos, obs_pos)
+        action = agent.calculate_potential_field() # action is based on global coordinate
         # print("action {}".format(action))
         s, r, done, info = env.step(action)
         print("Iteration {}. Step {}. Action {}".format(it, steps, action))

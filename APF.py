@@ -10,15 +10,20 @@ import potential
 import numpy as np
 
 class APF(object):
-    def __init__(self, robot_num, sensor_range, site_mode):
+    def __init__(self, robot_num, sensor_range, site_mode): # env static info
         self.robot_num = robot_num
         self.sensor_range = sensor_range
         self.site_mode = site_mode # attachment-site mode
+
+    def reset_state(self, goal_pos, obs_r, robot_r): # env info which will be changed only after reset
+        self.goal_pos = goal_pos
+        self.obs_r = obs_r
+        self.robot_r = robot_r
         
-    def set_state(self, robot_pos, obs_pos, goal_pos):
+    def set_state(self, robot_pos, obs_pos): # env dynamic info
         self.robot_pos = robot_pos
         self.obs_pos = obs_pos
-        self.goal_pos = goal_pos
+        
         
     def calculate_potential_field(self):
         robots_action = []
@@ -26,29 +31,36 @@ class APF(object):
             ### obs potential
             v_direction_obs = np.zeros(self.robot_pos[0].shape[0])
             v_magnitude_obs = 0.
+            weight_obs = 1.1
             for i in range(self.obs_pos.shape[0]):
-                v_magnitude_obs_i, v_direction_obs_i = potential.avoid_static_obstacles(self.robot_pos[robot_idx], self.obs_pos[i])
+                v_magnitude_obs_i, v_direction_obs_i = potential.avoid_static_obstacles(self.robot_pos[robot_idx], self.obs_pos[i], self.obs_r[i])
                 # print("robot_pos[idx] {} v_direction_obs_i {}".format(self.robot_pos[robot_idx], v_direction_obs_i))
                 v_direction_obs += v_direction_obs_i
                 v_magnitude_obs += v_magnitude_obs_i
+            weight_v_direction_obs = v_direction_obs/np.linalg.norm(v_direction_obs) * weight_obs # normalized and weighted
             
             ### partner potential
             v_direction_partner = np.zeros(self.robot_pos[0].shape[0])
             v_magnitude_partner = 0.
+            weight_partner = 1.1
             for i, partner_pos in enumerate(self.robot_pos):
                 if i == robot_idx: # np.all(self.robot_pos[robot_idx] == partner_pos)
                     continue
                 else:
-                    v_magnitude_partner_i, v_direction_partner_i = potential.avoid_robots(self.robot_pos[robot_idx], partner_pos)
+                    v_magnitude_partner_i, v_direction_partner_i = potential.avoid_robots(self.robot_pos[robot_idx], partner_pos, self.robot_r)
                 v_direction_partner += v_direction_partner_i
                 v_magnitude_partner += v_magnitude_partner_i
+            weight_v_direction_partner = v_direction_partner/np.linalg.norm(v_direction_partner) * weight_partner # normalized and weighted
             
             ### goal potential
             v_magnitude_goal, v_direction_goal = potential.move_to_goal(self.robot_pos[robot_idx], self.goal_pos)
+            weight_goal = 0.7
+            weight_v_direction_goal = v_direction_goal/np.linalg.norm(v_direction_goal) * weight_goal # normalized and weighted
             
             ### formation potential
             v_direction_formation = np.zeros(self.robot_pos[0].shape[0])
             v_magnitude_formation = 0.
+            weight_formation = 1.3
             for i, partner_pos in enumerate(self.robot_pos):
                 if i == robot_idx: 
                     continue
@@ -62,14 +74,18 @@ class APF(object):
                         
                         v_direction_formation += v_direction_site
                         v_magnitude_formation += v_magnitude_site
+            weight_v_direction_formation = v_direction_formation/np.linalg.norm(v_direction_formation) * weight_formation # normalized and weighted
                             
             
             ### unit center potential
             unit_center = np.average(self.robot_pos)
             v_magnitude_unitcenter, v_direction_unitcenter = potential.move_to_uint_center(self.robot_pos[robot_idx], unit_center)
+            weight_unitcenter = 0.6
+            weight_v_direction_unitcenter = v_direction_unitcenter/np.linalg.norm(v_direction_unitcenter) * weight_unitcenter # normalized and weighted
             
             # action of one robot
-            v_direction = v_direction_obs + v_direction_partner + v_direction_goal + v_direction_formation + v_direction_unitcenter # [dx, dy] before normalized
+            # v_direction = v_direction_obs + v_direction_partner + v_direction_goal + v_direction_formation + v_direction_unitcenter # [dx, dy] before normalized
+            v_direction = weight_v_direction_obs + weight_v_direction_partner + weight_v_direction_goal + weight_v_direction_formation + weight_v_direction_unitcenter # use weighted direction
             normalized_v_direction = v_direction / np.linalg.norm(v_direction)
             v_magnitude = v_magnitude_obs + v_magnitude_partner + v_magnitude_goal + v_magnitude_formation + v_magnitude_unitcenter
             robots_action.append([v_magnitude*normalized_v_direction[0], v_magnitude*normalized_v_direction[1]])
