@@ -32,7 +32,7 @@ class APF(object):
         for robot_idx in range(self.robot_num):
             ### obs potential
             v_direction_obs = np.zeros(self.robot_pos[0].shape[0])
-            v_magnitude_obs = 0.
+            # v_magnitude_obs = 0.
             weight_obs = 1.1
             for i in range(self.obs_pos.shape[0]):
                 v_magnitude_obs_i, v_direction_obs_i = potential.avoid_static_obstacles(self.robot_pos[robot_idx], self.obs_pos[i], self.obs_r[i])
@@ -45,7 +45,7 @@ class APF(object):
             
             ### partner potential
             v_direction_partner = np.zeros(self.robot_pos[0].shape[0])
-            v_magnitude_partner = 0.
+            # v_magnitude_partner = 0.
             weight_partner = 1.1
             for i, partner_pos in enumerate(self.robot_pos):
                 if i == robot_idx: # np.all(self.robot_pos[robot_idx] == partner_pos)
@@ -68,7 +68,7 @@ class APF(object):
             
             ### formation potential
             v_direction_formation = np.zeros(self.robot_pos[0].shape[0])
-            v_magnitude_formation = 0.
+            # v_magnitude_formation = 0.
             weight_formation = 1.3
             for i, partner_pos in enumerate(self.robot_pos):
                 if i == robot_idx: 
@@ -101,17 +101,20 @@ class APF(object):
             
             # print("v_obs {}, v_partner {}, v_goal {}, v_formation {}, v_unitcenter {}".format(v_direction_obs, v_direction_partner, v_direction_goal, v_direction_formation, v_direction_unitcenter))
             
-            ### robot team
-            v_direction = weight_v_direction_obs + weight_v_direction_partner + weight_v_direction_goal + weight_v_direction_formation + weight_v_direction_unitcenter # use weighted direction
-            # normalized_v_direction = v_direction / np.linalg.norm(v_direction)                              
-            # v_magnitude = v_magnitude_obs + v_magnitude_partner + v_magnitude_goal + v_magnitude_formation + v_magnitude_unitcenter # dummy and wrong
-            
-            # ----debug with one robot----
-            print("v_obs {}, v_goal {}".format(v_direction_obs, v_direction_goal))
-            v_direction = weight_v_direction_obs + weight_v_direction_goal
-            # normalized_v_direction = v_direction / np.linalg.norm(v_direction) # -----|
-            # v_magnitude = v_magnitude_obs + v_magnitude_goal # ----dummy and wrong----|
-            # ----------------------------
+            if self.robot_num == 3:
+                ### robot team
+                v_direction = weight_v_direction_obs + weight_v_direction_partner + weight_v_direction_goal + weight_v_direction_formation + weight_v_direction_unitcenter # use weighted direction
+                # normalized_v_direction = v_direction / np.linalg.norm(v_direction)                              
+                # v_magnitude = v_magnitude_obs + v_magnitude_partner + v_magnitude_goal + v_magnitude_formation + v_magnitude_unitcenter # dummy and wrong
+            elif self.robot_num == 1:    
+                # ----debug with one robot----
+                # print("v_obs {}, v_goal {}".format(v_direction_obs, v_direction_goal))
+                v_direction = weight_v_direction_obs + weight_v_direction_goal
+                # normalized_v_direction = v_direction / np.linalg.norm(v_direction) # -----|
+                # v_magnitude = v_magnitude_obs + v_magnitude_goal # ----dummy and wrong----|
+                # ----------------------------
+            else:
+                raise NotImplementedError('No implementation for robot_num {}'.format(self.robot_num))
             
             # robots_action.append([v_magnitude*normalized_v_direction[0], v_magnitude*normalized_v_direction[1]]) # wrong!
             robots_action.append(v_direction)
